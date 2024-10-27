@@ -27,7 +27,7 @@ std::string kClonePath = "/tmp/rocksdb_clone_db";
 // the same bucket (obviously with different pathnames).
 //
 std::string kBucketSuffix = "cloud.clone.example.";
-std::string kRegion = "us-west-2";
+std::string kRegion = "ap-northeast-2";
 
 //
 // Creates and Opens a clone
@@ -43,7 +43,7 @@ Status CloneDB(const std::string& clone_name, const std::string& src_bucket,
 
   // Create new AWS env
   CloudFileSystem* cfs;
-  Status st = CloudFileSystem::NewAwsFileSystem(
+  Status st = CloudFileSystemEnv::NewAwsFileSystem(
       FileSystem::Default(), src_bucket, src_object_path, kRegion, dest_bucket,
       dest_object_path, kRegion, cloud_fs_options, nullptr, &cfs);
   if (!st.ok()) {
@@ -106,9 +106,11 @@ int main() {
   cloud_fs_options.src_bucket.SetBucketName(kBucketSuffix, bucketPrefix);
   cloud_fs_options.dest_bucket.SetBucketName(kBucketSuffix, bucketPrefix);
 
+  std::cout << "kBucketSuffix: " << kBucketSuffix << " kDBPath: " << kDBPath << " kRegion: " << kRegion << " kBucketSuffix" << kBucketSuffix << std::endl;
+
   // Create a new AWS cloud env Status
   CloudFileSystem* cfs;
-  Status s = CloudFileSystem::NewAwsFileSystem(
+  Status s = CloudFileSystemEnv::NewAwsFileSystem(
       FileSystem::Default(), kBucketSuffix, kDBPath, kRegion, kBucketSuffix,
       kDBPath, kRegion, cloud_fs_options, nullptr, &cfs);
   if (!s.ok()) {
