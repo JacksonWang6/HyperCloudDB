@@ -4,6 +4,7 @@
 // A directory maps to an an zero-size object in an S3 bucket
 // A sst file maps to an object in that S3 bucket.
 //
+#include <cstdio>
 #ifndef ROCKSDB_LITE
 #ifdef USE_AWS
 #include <aws/core/Aws.h>
@@ -291,6 +292,7 @@ class S3ReadableFile : public CloudStorageReadableFileImpl {
   IOStatus DoCloudRead(uint64_t offset, size_t n, const IOOptions& /*options*/,
                        char* scratch, uint64_t* bytes_read,
                        IODebugContext* /*dbg*/) const override {
+    printf("DoCloudRead file %s off %lu len %zu\n", fname_.c_str(), offset, n);
     // create a range read request
     // Ranges are inclusive, so we can't read 0 bytes; read 1 instead and
     // drop it later.

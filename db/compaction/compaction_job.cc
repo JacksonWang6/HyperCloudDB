@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cinttypes>
+#include <cstdio>
 #include <memory>
 #include <optional>
 #include <set>
@@ -1839,7 +1840,16 @@ Status CompactionJob::OpenCompactionOutputFile(SubcompactionState* sub_compact,
 
   // no need to lock because VersionSet::next_file_number_ is atomic
   uint64_t file_number = versions_->NewFileNumber();
-  std::string fname = GetTableFileName(file_number);
+  // (wjp): modify here to support HyperCloudFS
+  std::string path;
+  int path_id = 0;
+  // L0 L1放在path id 0，其他的放在path id 1
+  if (sub_compact->compaction->output_level() > 1) {
+    path_id = 1;
+  }
+  path = compact_->compaction->immutable_options()->cf_paths[path_id].path;
+  std::string fname = MakeTableFileName(path, file_number);
+  printf("level %d path id %d compaction output file %s\n", sub_compact->compaction->output_level(), path_id, fname.c_str());
   // Fire events.
   ColumnFamilyData* cfd = sub_compact->compaction->column_family_data();
   EventHelpers::NotifyTableFileCreationStarted(
@@ -1923,8 +1933,9 @@ Status CompactionJob::OpenCompactionOutputFile(SubcompactionState* sub_compact,
   uint64_t epoch_number = sub_compact->compaction->MinInputFileEpochNumber();
   {
     FileMetaData meta;
+    // 保存path id，这样后面才能索引到正确的路径
     meta.fd = FileDescriptor(file_number,
-                             sub_compact->compaction->output_path_id(), 0);
+                             path_id, 0);
     meta.oldest_ancester_time = oldest_ancester_time;
     meta.file_creation_time = current_time;
     meta.epoch_number = epoch_number;

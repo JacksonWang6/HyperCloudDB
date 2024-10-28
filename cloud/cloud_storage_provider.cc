@@ -155,6 +155,10 @@ CloudStorageWritableFileImpl::~CloudStorageWritableFileImpl() {
   }
 }
 
+static bool isEBS(std::string fname) {
+  return fname.find("ebs") != std::string::npos;
+}
+
 IOStatus CloudStorageWritableFileImpl::Close(const IOOptions& opts,
                                              IODebugContext* dbg) {
   if (local_file_ == nullptr) {  // already closed
@@ -184,7 +188,8 @@ IOStatus CloudStorageWritableFileImpl::Close(const IOOptions& opts,
     }
 
     // delete local file
-    if (!cfs_->GetCloudFileSystemOptions().keep_local_sst_files) {
+    bool is_ebs = isEBS(fname_);
+    if (!cfs_->GetCloudFileSystemOptions().keep_local_sst_files && !is_ebs) {
       status_ = cfs_->GetBaseFileSystem()->DeleteFile(fname_, opts, dbg);
       if (!status_.ok()) {
         Log(InfoLogLevel::ERROR_LEVEL, cfs_->GetLogger(),

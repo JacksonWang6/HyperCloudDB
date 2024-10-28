@@ -91,6 +91,10 @@ int main() {
   options.arena_block_size = 4 << 10;
   options.level0_file_num_compaction_trigger = 2;
   options.max_bytes_for_level_base = 100 << 10; // 100KB
+  options.db_paths = {
+    {"/tmp/rocksdb_cloud_durable/ebs", 60l * 1024 * 1024 * 1024},
+    {"/tmp/rocksdb_cloud_durable/s3", 60l * 1024 * 1024 * 1024}
+  };
 
   // No persistent read-cache
   std::string persistent_cache = "";
@@ -144,13 +148,18 @@ int main() {
   printf("get %s\n", value.c_str());
 
   // print all values in the database
-  // ROCKSDB_NAMESPACE::Iterator* it =
-  //     db->NewIterator(ROCKSDB_NAMESPACE::ReadOptions());
-  // for (it->SeekToFirst(); it->Valid(); it->Next()) {
-  //   std::cout << it->key().ToString() << ": " << it->value().ToString()
-  //             << std::endl;
-  // }
-  // delete it;
+  ROCKSDB_NAMESPACE::Iterator* it =
+      db->NewIterator(ROCKSDB_NAMESPACE::ReadOptions());
+  int cnt = 0;
+  for (it->SeekToFirst(); it->Valid(); it->Next()) {
+    // std::cout << it->key().ToString() << ": " << it->value().ToString()
+    //           << std::endl;
+    cnt++;
+    if (cnt % 1000 == 0) {
+      std::cout << "read " << cnt << " record" << std::endl;
+    }
+  }
+  delete it;
 
   // Flush all data from main db to sst files. Release db.
   if (flushAtEnd) {
