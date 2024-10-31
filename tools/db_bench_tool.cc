@@ -92,6 +92,14 @@
 #include "utilities/merge_operators/sortlist.h"
 #include "utilities/persistent_cache/block_cache_tier.h"
 
+#ifdef USE_AWS
+#include <aws/core/Aws.h>
+#include <aws/s3/S3Client.h>
+#include <aws/core/auth/AWSCredentialsProviderChain.h>
+#endif
+#include "rocksdb/cloud/db_cloud.h"
+#include "rocksdb/options.h"
+
 #ifdef MEMKIND
 #include "memory/memkind_kmem_allocator.h"
 #endif
@@ -1001,6 +1009,7 @@ DEFINE_uint64(fifo_age_for_warm, 0, "age_for_warm for FIFO compaction.");
 
 // Stacked BlobDB Options
 DEFINE_bool(use_blob_db, false, "[Stacked BlobDB] Open a BlobDB instance.");
+DEFINE_bool(use_hyper_cloud_db, false, "[Stacked BlobDB] Open a hyper cloud db instance.");
 
 DEFINE_bool(
     blob_db_enable_gc,
@@ -4847,10 +4856,69 @@ class Benchmark {
 
   void OpenDb(Options options, const std::string& db_name,
               DBWithColumnFamilies* db) {
+    std::cout << "before opendb " << db_name << std::endl;
     uint64_t open_start = FLAGS_report_open_timing ? FLAGS_env->NowNanos() : 0;
     Status s;
     // Open with column families if necessary.
-    if (FLAGS_num_column_families > 1) {
+    if (FLAGS_use_hyper_cloud_db) { 
+      // 使用混合云存储，初始化云环境，然后打开对应的db
+      std::string kBucketSuffix = "cloud.dbbench.";
+      std::string kRegion = "ap-northeast-2";
+      Aws::SDKOptions aws_options;
+      Aws::InitAPI(aws_options);
+      CloudFileSystemOptions cloud_fs_options;
+      std::shared_ptr<FileSystem> cloud_fs;
+      std::string user = "wjp";
+      kBucketSuffix.append(user);
+      // "rockset." is the default bucket prefix
+      const std::string bucketPrefix = "rockset.";
+      cloud_fs_options.src_bucket.SetBucketName(kBucketSuffix, bucketPrefix);
+      cloud_fs_options.dest_bucket.SetBucketName(kBucketSuffix, bucketPrefix);
+      // create a bucket name for debugging purposes
+      const std::string bucketName = bucketPrefix + kBucketSuffix;
+      std::cout << "kBucketSuffix: " << kBucketSuffix << " kDBPath: " << db_name << " kRegion: " << kRegion << " bucketName: " << bucketName << std::endl;
+      // Create a new AWS cloud env Status
+      CloudFileSystem* cfs;
+      s = CloudFileSystemEnv::NewAwsFileSystem(
+          FileSystem::Default(), kBucketSuffix, db_name, kRegion, kBucketSuffix,
+          db_name, kRegion, cloud_fs_options, nullptr, &cfs);
+      if (!s.ok()) {
+        fprintf(stderr, "Unable to create cloud env in bucket %s. %s\n",
+                bucketName.c_str(), s.ToString().c_str());
+        return;
+      }
+      cloud_fs.reset(cfs);
+
+
+      // Create options and use the AWS file system that we created earlier
+      auto cloud_env = NewCompositeEnv(cloud_fs);
+      // should be set by 
+      options.env = cloud_env.release();
+      options.create_if_missing = true;
+      options.compaction_style = rocksdb::kCompactionStyleLevel;
+      options.write_buffer_size = 110 << 10;  // 110KB
+      options.arena_block_size = 4 << 10;
+      options.level0_file_num_compaction_trigger = 2;
+      options.max_bytes_for_level_base = 100 << 10; // 100KB
+      options.db_paths = {
+        {db_name + "/ebs", 60l * 1024 * 1024 * 1024},
+        {db_name + "/s3", 60l * 1024 * 1024 * 1024}
+      };
+
+      // open DB
+      DBCloud* cloud_db;
+      std::string persistent_cache = "";
+      s = DBCloud::Open(options, db_name, persistent_cache, 0, &cloud_db);
+      if (!s.ok()) {
+        fprintf(stderr, "Unable to open db at path %s with bucket %s. %s\n",
+                db_name.c_str(), bucketName.c_str(), s.ToString().c_str());
+        return;
+      }
+      db->db = cloud_db;
+
+      fprintf(stdout, "Successfully used db at path %s in bucket %s.\n",
+              db_name.c_str(), bucketName.c_str());
+    } else if (FLAGS_num_column_families > 1) {
       size_t num_hot = FLAGS_num_column_families;
       if (FLAGS_num_hot_column_families > 0 &&
           FLAGS_num_hot_column_families < FLAGS_num_column_families) {
@@ -4991,6 +5059,7 @@ class Benchmark {
       fprintf(stderr, "open error: %s\n", s.ToString().c_str());
       exit(1);
     }
+    std::cout << "after opendb " << db_name << std::endl;
   }
 
   enum WriteMode { RANDOM, SEQUENTIAL, UNIQUE_RANDOM };
