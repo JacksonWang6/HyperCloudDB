@@ -292,7 +292,7 @@ class S3ReadableFile : public CloudStorageReadableFileImpl {
   IOStatus DoCloudRead(uint64_t offset, size_t n, const IOOptions& /*options*/,
                        char* scratch, uint64_t* bytes_read,
                        IODebugContext* /*dbg*/) const override {
-    printf("DoCloudRead file %s off %lu len %zu\n", fname_.c_str(), offset, n);
+    // printf("DoCloudRead file %s off %lu len %zu\n", fname_.c_str(), offset, n);
     // create a range read request
     // Ranges are inclusive, so we can't read 0 bytes; read 1 instead and
     // drop it later.

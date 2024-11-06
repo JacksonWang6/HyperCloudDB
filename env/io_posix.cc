@@ -559,9 +559,18 @@ PosixRandomAccessFile::PosixRandomAccessFile(
 {
   assert(!options.use_direct_reads || !options.use_mmap_reads);
   assert(!options.use_mmap_reads);
+  is_s3_compaction_read = options.is_s3_compaction_read;
 }
 
-PosixRandomAccessFile::~PosixRandomAccessFile() { close(fd_); }
+PosixRandomAccessFile::~PosixRandomAccessFile() { 
+  close(fd_);
+  // (wjp) 对于S3的读，关闭文件的时候直接删除本地文件
+  if (is_s3_compaction_read) {
+    if (unlink(filename_.c_str()) != 0) {
+      printf("~PosixRandomAccessFile error\n");
+    }
+  }
+}
 
 IOStatus PosixRandomAccessFile::Read(uint64_t offset, size_t n,
                                      const IOOptions& /*opts*/, Slice* result,
@@ -944,6 +953,7 @@ PosixMmapReadableFile::PosixMmapReadableFile(const int fd,
   fd_ = fd_ + 0;  // suppress the warning for used variables
   assert(options.use_mmap_reads);
   assert(!options.use_direct_reads);
+  is_s3_compaction_read = options.is_s3_compaction_read;
 }
 
 PosixMmapReadableFile::~PosixMmapReadableFile() {
@@ -953,6 +963,12 @@ PosixMmapReadableFile::~PosixMmapReadableFile() {
             mmapped_region_, length_);
   }
   close(fd_);
+  // (wjp) 说明是需要从S3进行Compaction的时候临时读的，那么关闭的时候需要从本地删除掉。
+  if (is_s3_compaction_read) {
+    if (unlink(filename_.c_str()) != 0) {
+      printf("~PosixMmapReadableFile error\n");
+    }
+  }
 }
 
 IOStatus PosixMmapReadableFile::Read(uint64_t offset, size_t n,

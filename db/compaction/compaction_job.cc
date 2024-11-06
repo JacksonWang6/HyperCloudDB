@@ -709,6 +709,9 @@ Status CompactionJob::Run() {
   if (status.ok()) {
     status = io_s;
   }
+  if (compact_->compaction->start_level() > db_options_.hyper_level && db_options_.enable_s3_compaction_read) {
+    file_options_.is_s3_compaction_read = true;
+  }
   if (status.ok()) {
     thread_pool.clear();
     std::vector<const CompactionOutputs::Output*> files_output;
@@ -737,7 +740,7 @@ Status CompactionJob::Run() {
         ReadOptions verify_table_read_options(Env::IOActivity::kCompaction);
         verify_table_read_options.rate_limiter_priority =
             GetRateLimiterPriority();
-        InternalIterator* iter = cfd->table_cache()->NewIterator(
+        InternalIterator* iter = cfd->table_cache()->NewIterator( // (wjp: BGCompaction open file here) 根据compact_->compaction的start level判断，然后改ReadOptions标志位标记一下
             verify_table_read_options, file_options_,
             cfd->internal_comparator(), files_output[file_idx]->meta,
             /*range_del_agg=*/nullptr, prefix_extractor,
@@ -1844,12 +1847,11 @@ Status CompactionJob::OpenCompactionOutputFile(SubcompactionState* sub_compact,
   std::string path;
   int path_id = 0;
   // L0 L1放在path id 0，其他的放在path id 1
-  if (sub_compact->compaction->output_level() > 1) {
+  if (sub_compact->compaction->output_level() > db_options_.hyper_level) {
     path_id = 1;
   }
   path = compact_->compaction->immutable_options()->cf_paths[path_id].path;
   std::string fname = MakeTableFileName(path, file_number);
-  printf("level %d path id %d compaction output file %s\n", sub_compact->compaction->output_level(), path_id, fname.c_str());
   // Fire events.
   ColumnFamilyData* cfd = sub_compact->compaction->column_family_data();
   EventHelpers::NotifyTableFileCreationStarted(
@@ -1933,7 +1935,7 @@ Status CompactionJob::OpenCompactionOutputFile(SubcompactionState* sub_compact,
   uint64_t epoch_number = sub_compact->compaction->MinInputFileEpochNumber();
   {
     FileMetaData meta;
-    // 保存path id，这样后面才能索引到正确的路径
+    // (wjp) 保存path id，这样后面才能索引到正确的路径
     meta.fd = FileDescriptor(file_number,
                              path_id, 0);
     meta.oldest_ancester_time = oldest_ancester_time;

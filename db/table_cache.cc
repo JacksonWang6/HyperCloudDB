@@ -238,7 +238,7 @@ InternalIterator* TableCache::NewIterator(
   auto& fd = file_meta.fd;
   table_reader = fd.table_reader;
   if (table_reader == nullptr) {
-    s = FindTable(options, file_options, icomparator, file_meta, &handle,
+    s = FindTable(options, file_options, icomparator, file_meta, &handle, // (wjp: open file here)
                   block_protection_bytes_per_key, prefix_extractor,
                   options.read_tier == kBlockCacheTier /* no_io */,
                   file_read_hist, skip_filters, level,
@@ -246,6 +246,12 @@ InternalIterator* TableCache::NewIterator(
                   max_file_size_for_l0_meta_pin, file_meta.temperature);
     if (s.ok()) {
       table_reader = cache_.Value(handle);
+      if (file_options.is_s3_compaction_read) {
+        uint64_t number = file_meta.fd.GetNumber();
+        Slice key = GetSliceForFileNumber(&number);
+        MutexLock load_lock(&loader_mutex_.Get(key));
+        cache_.get()->Erase(key);
+      }
     }
   }
   InternalIterator* result = nullptr;

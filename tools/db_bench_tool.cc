@@ -3422,11 +3422,24 @@ class Benchmark {
     exit(1);
   }
 
+  std::thread stat_thr;
+  static void printRocksDBStats(DBWithColumnFamilies* db) {
+      while (true) {
+        std::cout << ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>" << std::endl;
+        std::this_thread::sleep_for(std::chrono::seconds(60));
+        std::string res;
+        db->db->GetProperty("rocksdb.stats", &res);
+        std::cout << res << std::endl;
+        std::cout << "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" << std::endl;
+      }
+  }
+
   void Run() {
     if (!SanityCheck()) {
       ErrorExit();
     }
     Open(&open_options_);
+    stat_thr = std::thread(printRocksDBStats, &db_);
     PrintHeader(open_options_);
     std::stringstream benchmark_stream(FLAGS_benchmarks);
     std::string name;
@@ -4854,6 +4867,42 @@ class Benchmark {
     InitializeOptionsGeneral(opts);
   }
 
+  void SetOption(Options* options) {
+    //// 默认的Rocksdb配置
+    options->create_if_missing = true;
+    options->compression = rocksdb::kNoCompression;
+    options->compaction_style = rocksdb::kCompactionStyleLevel;
+    options->enable_pipelined_write = true;
+
+    rocksdb::BlockBasedTableOptions block_based_options;
+    // L1 1G
+    options->max_bytes_for_level_base = 1024ul * 1024 * 1024;
+    // memtable 64MB
+    options->write_buffer_size = 64 * 1024 * 1024;
+    // 单个文件的大小64MB
+    options->target_file_size_base = 64 * 1024 * 1024;
+    options->max_background_compactions = 8;
+    options->max_background_flushes = 2;
+    // L0 1G
+    options->level0_file_num_compaction_trigger = 16;
+    options->level0_slowdown_writes_trigger = 40;
+    options->level0_stop_writes_trigger = 80;
+
+    options->use_direct_reads = true;
+    options->use_direct_io_for_flush_and_compaction = true;
+
+    //// set block based cache 16k
+
+    block_based_options.cache_index_and_filter_blocks = 0;
+    std::shared_ptr<const rocksdb::FilterPolicy> filter_policy(rocksdb::NewBloomFilterPolicy(10, 0));
+    block_based_options.filter_policy = filter_policy;
+    block_based_options.block_cache = rocksdb::NewLRUCache(256 * 1024 * 1024);
+    block_based_options.block_size = 16 * 1024;
+
+    options->table_factory.reset(
+        rocksdb::NewBlockBasedTableFactory(block_based_options));
+  }
+
   void OpenDb(Options options, const std::string& db_name,
               DBWithColumnFamilies* db) {
     std::cout << "before opendb " << db_name << std::endl;
@@ -4861,7 +4910,7 @@ class Benchmark {
     Status s;
     // Open with column families if necessary.
     if (FLAGS_use_hyper_cloud_db) { 
-      // 使用混合云存储，初始化云环境，然后打开对应的db
+      // (wjp) 使用混合云存储，初始化云环境，然后打开对应的db
       std::string kBucketSuffix = "cloud.dbbench.";
       std::string kRegion = "ap-northeast-2";
       Aws::SDKOptions aws_options;
@@ -4892,17 +4941,18 @@ class Benchmark {
 
       // Create options and use the AWS file system that we created earlier
       auto cloud_env = NewCompositeEnv(cloud_fs);
-      // should be set by 
+      // should be set by args
       options.env = cloud_env.release();
-      options.create_if_missing = true;
-      options.compaction_style = rocksdb::kCompactionStyleLevel;
-      options.write_buffer_size = 110 << 10;  // 110KB
-      options.arena_block_size = 4 << 10;
-      options.level0_file_num_compaction_trigger = 2;
-      options.max_bytes_for_level_base = 100 << 10; // 100KB
+      // options.create_if_missing = true;
+      // options.compaction_style = rocksdb::kCompactionStyleLevel;
+      // options.write_buffer_size = 110 << 10;  // 110KB
+      // options.arena_block_size = 4 << 10;
+      // options.level0_file_num_compaction_trigger = 2;
+      // options.max_bytes_for_level_base = 100 << 10; // 100KB
+      SetOption(&options);
       options.db_paths = {
         {db_name + "/ebs", 60l * 1024 * 1024 * 1024},
-        {db_name + "/s3", 60l * 1024 * 1024 * 1024}
+        {db_name + "/s3", 1024l * 1024 * 1024 * 1024}
       };
 
       // open DB

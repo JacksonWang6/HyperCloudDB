@@ -261,7 +261,7 @@ IOStatus CloudFileSystemImpl::NewRandomAccessFile(
 
   const IOOptions io_opts;
   if (sstfile || manifest || identity) {
-    if (cloud_fs_options.keep_local_sst_files || !sstfile) {
+    if (cloud_fs_options.keep_local_sst_files || !sstfile || file_opts.is_s3_compaction_read) {
       // Read from local storage and then from cloud storage.
       st = base_fs_->NewRandomAccessFile(fname, file_opts, result, dbg);
 
