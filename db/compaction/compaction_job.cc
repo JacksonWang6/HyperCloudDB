@@ -635,7 +635,9 @@ Status CompactionJob::Run() {
   const size_t num_threads = compact_->sub_compact_states.size();
   assert(num_threads > 0);
   const uint64_t start_micros = db_options_.clock->NowMicros();
-
+  if (compact_->compaction->output_level() > db_options_.hyper_level && db_options_.enable_s3_compaction_read) {
+    file_options_for_read_.is_s3_compaction_read = true;
+  }
   // Launch a thread for each of subcompactions 1...num_threads-1
   std::vector<port::Thread> thread_pool;
   thread_pool.reserve(num_threads - 1);
@@ -709,9 +711,9 @@ Status CompactionJob::Run() {
   if (status.ok()) {
     status = io_s;
   }
-  if (compact_->compaction->start_level() > db_options_.hyper_level && db_options_.enable_s3_compaction_read) {
-    file_options_.is_s3_compaction_read = true;
-  }
+  // if (compact_->compaction->output_level() > db_options_.hyper_level && db_options_.enable_s3_compaction_read) {
+  //   file_options_.is_s3_compaction_read = true;
+  // }
   if (status.ok()) {
     thread_pool.clear();
     std::vector<const CompactionOutputs::Output*> files_output;

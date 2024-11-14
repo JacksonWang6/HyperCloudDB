@@ -5,6 +5,7 @@
 // A sst file maps to an object in that S3 bucket.
 //
 #include <cstdio>
+#include "rocksdb/statistics.h"
 #ifndef ROCKSDB_LITE
 #ifdef USE_AWS
 #include <aws/core/Aws.h>
@@ -296,6 +297,7 @@ class S3ReadableFile : public CloudStorageReadableFileImpl {
     // create a range read request
     // Ranges are inclusive, so we can't read 0 bytes; read 1 instead and
     // drop it later.
+    s3_access_cnt++; // (wjp): add s3 access计数打点
     size_t rangeLen = (n != 0 ? n : 1);
     char buffer[512];
     int ret = snprintf(buffer, sizeof(buffer), "bytes=%" PRIu64 "-%" PRIu64,

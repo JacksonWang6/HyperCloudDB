@@ -585,6 +585,9 @@ struct DBOptions {
   // bottlenecked by RocksDB.
   DBOptions* IncreaseParallelism(int total_threads = 16);
 
+  int hyper_level = 2;
+  bool enable_s3_compaction_read = false;
+
   // If true, the database will be created if it is missing.
   // Default: false
   bool create_if_missing = false;

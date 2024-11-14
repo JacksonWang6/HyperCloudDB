@@ -535,6 +535,10 @@ size_t PosixHelper::GetLogicalBlockSizeOfFd(int fd) {
   return kDefaultPageSize;
 }
 
+static bool isEBS(const std::string& fname) {
+  // Search for the substring "ebs"
+  return fname.find("ebs") != std::string::npos;
+}
 /*
  * PosixRandomAccessFile
  *
@@ -559,7 +563,9 @@ PosixRandomAccessFile::PosixRandomAccessFile(
 {
   assert(!options.use_direct_reads || !options.use_mmap_reads);
   assert(!options.use_mmap_reads);
-  is_s3_compaction_read = options.is_s3_compaction_read;
+  if (!isEBS(fname)) {
+    is_s3_compaction_read = options.is_s3_compaction_read;
+  }
 }
 
 PosixRandomAccessFile::~PosixRandomAccessFile() { 
@@ -953,7 +959,9 @@ PosixMmapReadableFile::PosixMmapReadableFile(const int fd,
   fd_ = fd_ + 0;  // suppress the warning for used variables
   assert(options.use_mmap_reads);
   assert(!options.use_direct_reads);
-  is_s3_compaction_read = options.is_s3_compaction_read;
+  if (!isEBS(fname)) {
+    is_s3_compaction_read = options.is_s3_compaction_read;
+  }
 }
 
 PosixMmapReadableFile::~PosixMmapReadableFile() {

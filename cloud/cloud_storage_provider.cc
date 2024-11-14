@@ -4,6 +4,7 @@
 #include "rocksdb/cloud/cloud_storage_provider.h"
 
 #include <cinttypes>
+#include <cstdio>
 
 #include "cloud/filename.h"
 #include "file/filename.h"
@@ -179,11 +180,13 @@ IOStatus CloudStorageWritableFileImpl::Close(const IOOptions& opts,
   local_file_.reset();
 
   if (!is_manifest_) {
+    // (wjp) maybe need retry
     status_ = cfs_->CopyLocalFileToDest(fname_, cloud_fname_);
     if (!status_.ok()) {
       Log(InfoLogLevel::ERROR_LEVEL, cfs_->GetLogger(),
           "[%s] CloudWritableFile closing PutObject failed on local file %s",
           Name(), fname_.c_str());
+      printf("ERROR: CopyLocalFile %s ToDest %s failed\n", fname_.c_str(), cloud_fname_.c_str());
       return status_;
     }
 
