@@ -632,6 +632,9 @@ Status CompactionJob::Run() {
   log_buffer_->FlushBufferToLog();
   LogCompaction();
 
+  // (wjp) 添加Major Compaction相关的打点
+  double seconds_up1 = db_options_.SecondsUp();
+  ROCKS_LOG_INFO(db_options_.info_log.get(), "[wjp] {%f}: Major Compaction start {%p} L{%d} -> L{%d}", seconds_up1, compact_, compact_->compaction->start_level(), compact_->compaction->output_level());
   const size_t num_threads = compact_->sub_compact_states.size();
   assert(num_threads > 0);
   const uint64_t start_micros = db_options_.clock->NowMicros();
@@ -667,6 +670,8 @@ Status CompactionJob::Run() {
   RecordTimeToHistogram(stats_, COMPACTION_CPU_TIME,
                         compaction_stats_.stats.cpu_micros);
 
+  double seconds_up2 = db_options_.SecondsUp();
+  ROCKS_LOG_INFO(db_options_.info_log.get(), "[wjp] {%f}: Major Compaction finished {%p} L{%d} -> L{%d}, cost {%f} s", seconds_up2, compact_, compact_->compaction->start_level(), compact_->compaction->output_level(), seconds_up2 - seconds_up1);
   TEST_SYNC_POINT("CompactionJob::Run:BeforeVerify");
 
   // Check if any thread encountered an error during execution

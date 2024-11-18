@@ -779,6 +779,7 @@ ImmutableDBOptions::ImmutableDBOptions(const DBOptions& options)
   enable_s3_compaction_read = options.enable_s3_compaction_read;
   fs = env->GetFileSystem();
   clock = env->GetSystemClock().get();
+  started_at_ = clock->NowMicros();
   logger = info_log.get();
   stats = statistics.get();
 }

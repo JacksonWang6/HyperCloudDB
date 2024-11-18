@@ -333,6 +333,9 @@ Status DBImpl::FlushMemTableToOutputFile(
   TEST_SYNC_POINT_CALLBACK(
       "DBImpl::FlushMemTableToOutputFile:AfterPickMemtables", &flush_job);
 
+  // (wjp) 对Flush memtable花费的时间进行打点分析
+  double seconds_up1 = immutable_db_options_.SecondsUp();
+  ROCKS_LOG_INFO(immutable_db_options_.info_log.get(), "[wjp] {%f}: Flush Compaction start {%p}", seconds_up1, &flush_job);
   // may temporarily unlock and lock the mutex.
   NotifyOnFlushBegin(cfd, &file_meta, mutable_cf_options, job_context->job_id,
                      flush_reason);
@@ -442,6 +445,8 @@ Status DBImpl::FlushMemTableToOutputFile(
     }
   }
   TEST_SYNC_POINT("DBImpl::FlushMemTableToOutputFile:Finish");
+  double seconds_up2 = immutable_db_options_.SecondsUp();
+  ROCKS_LOG_INFO(immutable_db_options_.info_log.get(), "[wjp] {%f}: Flush Compaction finished {%p} , cost {%f} s", seconds_up2, &flush_job, seconds_up2 - seconds_up1);
   return s;
 }
 
