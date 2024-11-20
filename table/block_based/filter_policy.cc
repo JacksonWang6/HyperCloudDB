@@ -37,7 +37,15 @@
 #include "util/ribbon_impl.h"
 #include "util/string_util.h"
 
+#include <array>
+#include "tries/path_decomposed_trie.hpp"
+#include "tries/vbyte_string_pool.hpp"
+#include <time.h>
+#include <chrono>
+
 namespace ROCKSDB_NAMESPACE {
+using rocksdb::succinct::util::char_range;
+using rocksdb::succinct::util::stl_string_adaptor;
 
 namespace {
 
@@ -70,11 +78,17 @@ class XXPH3FilterBitsBuilder : public BuiltinFilterBitsBuilder {
       : aggregate_rounding_balance_(aggregate_rounding_balance),
         cache_res_mgr_(cache_res_mgr),
         detect_filter_construct_corruption_(
-            detect_filter_construct_corruption) {}
+            detect_filter_construct_corruption), ot_pdt() {}
 
   ~XXPH3FilterBitsBuilder() override = default;
 
   void AddKey(const Slice& key) override {
+    std::string key_string(key.data(), key.data()+key.size());
+#ifdef USE_PDT_BUILDER
+    builder.add_key(visitor, key_string, stl_string_adaptor());
+#else
+    key_strings_.push_back(key_string);
+#endif
     uint64_t hash = GetSliceHash64(key);
     // Especially with prefixes, it is common to have repetition,
     // though only adjacent repetition, which we want to immediately
@@ -297,6 +311,18 @@ class XXPH3FilterBitsBuilder : public BuiltinFilterBitsBuilder {
   };
 
   HashEntriesInfo hash_entries_info_;
+  std::vector<std::string> key_strings_;  // vector for Slice.data
+#ifdef USE_PDT_BUILDER
+  std::string last_string;
+  typedef rocksdb::succinct::tries::path_decomposed_trie<succinct::tries::vbyte_string_pool, true> Trie_t;
+  typedef Trie_t::centroid_builder_visitor builder_visitor_t;
+  builder_visitor_t visitor;
+  size_t builder_keys = 0;
+  rocksdb::succinct::tries::compacted_trie_builder<builder_visitor_t> builder;
+#endif
+
+  // a compacted trie, NO need for a ot lex pdt yet
+  rocksdb::succinct::tries::path_decomposed_trie<rocksdb::succinct::tries::vbyte_string_pool, true> ot_pdt;
 };
 
 // #################### FastLocalBloom implementation ################## //
@@ -330,6 +356,80 @@ class FastLocalBloomBitsBuilder : public XXPH3FilterBitsBuilder {
   }
 
   Slice Finish(std::unique_ptr<const char[]>* buf, Status* status) override {
+    std::cout << "finish start" << std::endl;
+    auto start = std::chrono::high_resolution_clock::now();
+#ifndef USE_PDT_BUILDER
+//    fprintf(stderr, "in OtLexPdtBloomBitsBuilder::Finish() 8qpeye\n");
+    // generate a compacted trie and get essential data
+    assert(key_strings_.size() > 0);
+    key_strings_.erase(unique(key_strings_.begin(),
+                              key_strings_.end()),
+                       key_strings_.end()); //xp, for now simply dedup keys
+
+//    fprintf(stdout, "DEBUG w7zvbg key_strings_.size: %lu\n", key_strings_.size());
+
+    //auto chrono_start = std::chrono::system_clock::now();
+#ifdef USE_FULL_OT_PDT
+    ot_pdt.bulk_load(key_strings_, rocksdb::succinct::tries::stl_string_adaptor());;
+#else
+    ot_pdt.construct_compacted_trie(key_strings_, false); // ot_pdt.pub_ are inited
+#endif
+    key_strings_.clear();
+#else
+    builder.finish(visitor);
+#ifdef USE_FULL_OT_PDT
+    ot_pdt.instance(visitor);
+#else
+    ot_pdt.finish_essentia(visitor);
+#endif
+#endif
+
+#ifdef USE_FULL_OT_PDT
+    using rocksdb::succinct::EncodeArgs;
+    char* contents = nullptr;
+    EncodeArgs arg(contents);
+    arg.only_size = true;
+    ot_pdt.Encode(&arg);
+
+    uint64_t buf_byte_size = arg.size;
+    contents = new char[buf_byte_size];
+    arg.dst = contents;
+    arg.only_size = false;
+    arg.size = 0;
+    ot_pdt.Encode(&arg);
+#else
+    uint64_t ot_lex_pdt_byte_size = CalculateByteSpace();
+    assert(ot_lex_pdt_byte_size > 0);
+    uint64_t buf_byte_size = ot_lex_pdt_byte_size + 5;
+//    fprintf(stderr, "DEBUG 10dk3 compacted trie byte size: %lu\n", buf_byte_size);
+
+    char* contents = new char[buf_byte_size];
+    memset(contents, 0, buf_byte_size);
+    assert(contents);
+    char new_impl = static_cast<char>(-1);
+    char sub_impl = static_cast<char>(80); // 'P'
+    char fake_num_probes = static_cast<char>(7);
+
+    PutIntoCharArray(ot_pdt.pub_m_centroid_path_string,
+                     ot_pdt.pub_m_labels,
+                     ot_pdt.pub_m_centroid_path_branches,
+                     ot_pdt.pub_m_branching_chars,
+                     ot_pdt.pub_m_bp_m_bits,
+                     ot_pdt.pub_m_bp_m_size,
+                     new_impl,
+                     sub_impl,
+                     fake_num_probes,
+                     buf_byte_size,
+                     contents);
+
+    assert(sizeof(ot_pdt.pub_m_bp_m_size) != 0);
+#endif
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    std::cout << "pdt filter build time: " << duration.count() << " us" << std::endl;
+
+    start = std::chrono::high_resolution_clock::now();
+
     size_t num_entries = hash_entries_info_.entries.size();
     size_t len_with_metadata = CalculateSpace(num_entries);
 
@@ -397,6 +497,10 @@ class FastLocalBloomBitsBuilder : public XXPH3FilterBitsBuilder {
     if (status) {
       *status = Status::OK();
     }
+    end = std::chrono::high_resolution_clock::now();
+
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    std::cout << "normal filter build time: " << duration.count() << " us" << std::endl;
     return rv;
   }
 
@@ -1387,6 +1491,7 @@ FilterBitsBuilder* BloomFilterPolicy::GetBuilderWithContext(
   } else if (context.table_options.format_version < 5) {
     return GetLegacyBloomBuilderWithContext(context);
   } else {
+    std::cout << "run 2"  << std::endl;
     return GetFastLocalBloomBuilderWithContext(context);
   }
 }

@@ -53,6 +53,7 @@
 #include "util/stop_watch.h"
 #include "util/string_util.h"
 #include "util/work_queue.h"
+#include <iostream>
 
 namespace ROCKSDB_NAMESPACE {
 

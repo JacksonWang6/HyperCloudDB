@@ -15,6 +15,7 @@
 
 #include "rocksdb/filter_policy.h"
 #include "rocksdb/table.h"
+#include <iostream>
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -51,6 +52,8 @@ class FilterBitsBuilder {
   // TODO: refactor this to have a better signature, consolidate
   virtual Slice Finish(std::unique_ptr<const char[]>* buf,
                        Status* /* status */) {
+    std::cout << "Slice Finish" << std::endl;
+
     return Finish(buf);
   }
 

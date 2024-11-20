@@ -14,6 +14,7 @@
 #include "rocksdb/filter_policy.h"
 #include "table/block_based/block_based_table_reader.h"
 #include "util/coding.h"
+#include <iostream>
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -106,13 +107,16 @@ void FullFilterBlockBuilder::Reset() {
 Slice FullFilterBlockBuilder::Finish(
     const BlockHandle& /*tmp*/, Status* status,
     std::unique_ptr<const char[]>* filter_data) {
+  // std::cout << "FullFilterBlockBuilder::Finish" << std::endl;
   Reset();
   // In this impl we ignore BlockHandle
   *status = Status::OK();
   if (any_added_) {
+  // std::cout << "FullFilterBlockBuilder::Finish 1" << std::endl;
     any_added_ = false;
     Slice filter_content = filter_bits_builder_->Finish(
         filter_data ? filter_data : &filter_data_, status);
+  // std::cout << "FullFilterBlockBuilder::Finish 2" << std::endl;
     return filter_content;
   }
   return Slice();
