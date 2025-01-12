@@ -40,6 +40,7 @@ void BlockPrefetcher::PrefetchIfNeeded(
       s = rep->file->Prefetch(opts, offset, len + compaction_readahead_size_);
       if (s.ok()) {
         readahead_limit_ = offset + len + compaction_readahead_size_;
+        s3_compact_read_cnt++; // (wjp) compaction的时候，按照大粒度读取
         return;
       } else if (!s.IsNotSupported()) {
         return;

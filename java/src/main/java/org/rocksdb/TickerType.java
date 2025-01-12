@@ -210,7 +210,7 @@ public enum TickerType {
     /**
      * # of Get() queries served by L2 and up
      */
-    GET_HIT_L2_AND_UP((byte) 0x31),
+    GET_HIT_L2((byte) 0x31),
 
     /**
      * COMPACTION_KEY_DROP_* count the reasons for key drop during compaction

@@ -11,6 +11,8 @@
 
 #include <algorithm>
 #include <cinttypes>
+#include <cstdint>
+#include <cstdio>
 #include <memory>
 #include <optional>
 #include <set>
@@ -631,10 +633,15 @@ Status CompactionJob::Run() {
   log_buffer_->FlushBufferToLog();
   LogCompaction();
 
+  // (wjp) 添加Major Compaction相关的打点
+  uint64_t seconds_up1 = db_options_.SecondsUp();
+  ROCKS_LOG_INFO(db_options_.info_log.get(), "[wjp] {%lu}: Major Compaction start {%p} L{%d} -> L{%d}", seconds_up1, compact_, compact_->compaction->start_level(), compact_->compaction->output_level());
   const size_t num_threads = compact_->sub_compact_states.size();
   assert(num_threads > 0);
   const uint64_t start_micros = db_options_.clock->NowMicros();
-
+  // if (compact_->compaction->output_level() > db_options_.hyper_level && db_options_.enable_s3_compaction_read) {
+  //   file_options_for_read_.is_s3_compaction_read = true;
+  // }
   // Launch a thread for each of subcompactions 1...num_threads-1
   std::vector<port::Thread> thread_pool;
   thread_pool.reserve(num_threads - 1);
@@ -664,6 +671,8 @@ Status CompactionJob::Run() {
   RecordTimeToHistogram(stats_, COMPACTION_CPU_TIME,
                         compaction_stats_.stats.cpu_micros);
 
+  uint64_t seconds_up2 = db_options_.SecondsUp();
+  ROCKS_LOG_INFO(db_options_.info_log.get(), "[wjp] {%lu}: Major Compaction finished {%p} L{%d} -> L{%d}, cost {%f} s", seconds_up2, compact_, compact_->compaction->start_level(), compact_->compaction->output_level(), seconds_up2/1000000.0 - seconds_up1/1000000.0);
   TEST_SYNC_POINT("CompactionJob::Run:BeforeVerify");
 
   // Check if any thread encountered an error during execution
@@ -708,6 +717,9 @@ Status CompactionJob::Run() {
   if (status.ok()) {
     status = io_s;
   }
+  // if (compact_->compaction->output_level() > db_options_.hyper_level && db_options_.enable_s3_compaction_read) {
+  //   file_options_.is_s3_compaction_read = true;
+  // }
   if (status.ok()) {
     thread_pool.clear();
     std::vector<const CompactionOutputs::Output*> files_output;
@@ -736,7 +748,7 @@ Status CompactionJob::Run() {
         ReadOptions verify_table_read_options(Env::IOActivity::kCompaction);
         verify_table_read_options.rate_limiter_priority =
             GetRateLimiterPriority();
-        InternalIterator* iter = cfd->table_cache()->NewIterator(
+        InternalIterator* iter = cfd->table_cache()->NewIterator( // (wjp: BGCompaction open file here) 根据compact_->compaction的start level判断，然后改ReadOptions标志位标记一下
             verify_table_read_options, file_options_,
             cfd->internal_comparator(), files_output[file_idx]->meta,
             /*range_del_agg=*/nullptr, prefix_extractor,
@@ -1839,7 +1851,16 @@ Status CompactionJob::OpenCompactionOutputFile(SubcompactionState* sub_compact,
 
   // no need to lock because VersionSet::next_file_number_ is atomic
   uint64_t file_number = versions_->NewFileNumber();
-  std::string fname = GetTableFileName(file_number);
+  // (wjp): modify here to support HyperCloudFS
+  std::string path;
+  int path_id = 0;
+  // L0 L1放在path id 0，其他的放在path id 1
+  if (sub_compact->compaction->output_level() > db_options_.hyper_level) {
+    path_id = 1;
+  }
+  path = compact_->compaction->immutable_options()->cf_paths[path_id].path;
+  std::string fname = MakeTableFileName(path, file_number);
+  // ROCKS_LOG_INFO(db_options_.info_log, "[wjp debug] start level %d, output level %d, pathid %d, path %s", sub_compact->compaction->start_level(), sub_compact->compaction->output_level(), path_id, path.c_str());
   // Fire events.
   ColumnFamilyData* cfd = sub_compact->compaction->column_family_data();
   EventHelpers::NotifyTableFileCreationStarted(
@@ -1923,8 +1944,9 @@ Status CompactionJob::OpenCompactionOutputFile(SubcompactionState* sub_compact,
   uint64_t epoch_number = sub_compact->compaction->MinInputFileEpochNumber();
   {
     FileMetaData meta;
+    // (wjp) 保存path id，这样后面才能索引到正确的路径
     meta.fd = FileDescriptor(file_number,
-                             sub_compact->compaction->output_path_id(), 0);
+                             path_id, 0);
     meta.oldest_ancester_time = oldest_ancester_time;
     meta.file_creation_time = current_time;
     meta.epoch_number = epoch_number;

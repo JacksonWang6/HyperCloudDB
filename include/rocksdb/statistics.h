@@ -17,6 +17,9 @@
 #include "rocksdb/status.h"
 
 namespace ROCKSDB_NAMESPACE {
+extern std::atomic<uint64_t> s3_access_cnt;
+extern std::atomic<uint64_t> s3_compact_read_cnt;
+extern std::atomic<uint64_t> s3_put_cnt;
 
 /**
  * Keep adding tickers here. Note that the C++ enum values, unlike the values in
@@ -146,7 +149,9 @@ enum Tickers : uint32_t {
   // # of Get() queries served by L1
   GET_HIT_L1,
   // # of Get() queries served by L2 and up
-  GET_HIT_L2_AND_UP,
+  GET_HIT_L2,
+  GET_HIT_L3,
+  GET_HIT_L4_AND_UP,
 
   /**
    * COMPACTION_KEY_DROP_* count the reasons for key drop during compaction

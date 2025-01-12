@@ -43,6 +43,7 @@
 #include "db/version_edit_handler.h"
 #include "db/wide/wide_columns_helper.h"
 #include "file/file_util.h"
+#include "rocksdb/statistics.h"
 #include "table/compaction_merging_iterator.h"
 
 #include "rocksdb/slice.h"
@@ -2504,8 +2505,12 @@ void Version::Get(const ReadOptions& read_options, const LookupKey& k,
           RecordTick(db_statistics_, GET_HIT_L0);
         } else if (fp.GetHitFileLevel() == 1) {
           RecordTick(db_statistics_, GET_HIT_L1);
-        } else if (fp.GetHitFileLevel() >= 2) {
-          RecordTick(db_statistics_, GET_HIT_L2_AND_UP);
+        } else if (fp.GetHitFileLevel() == 2) {
+          RecordTick(db_statistics_, GET_HIT_L2);
+        } else if (fp.GetHitFileLevel() == 3) {
+          RecordTick(db_statistics_, GET_HIT_L3);
+        } else {
+          RecordTick(db_statistics_, GET_HIT_L4_AND_UP);
         }
 
         PERF_COUNTER_BY_LEVEL_ADD(user_key_return_count, 1,
@@ -7229,6 +7234,7 @@ void VersionSet::AddLiveFiles(std::vector<uint64_t>* live_table_files,
   }
 }
 
+// (wjp: compaction input file here)
 InternalIterator* VersionSet::MakeInputIterator(
     const ReadOptions& read_options, const Compaction* c,
     RangeDelAggregator* range_del_agg,

@@ -25,6 +25,7 @@
 #include "db/db_impl/db_impl.h"
 #include "db/write_stall_stats.h"
 #include "port/port.h"
+#include "rocksdb/statistics.h"
 #include "rocksdb/system_clock.h"
 #include "rocksdb/table.h"
 #include "table/block_based/cachable_entry.h"
@@ -863,27 +864,35 @@ bool InternalStats::HandleNumBlobFiles(uint64_t* value, DBImpl* /*db*/,
   return true;
 }
 
+// (wjp) export my statistic
 bool InternalStats::HandleBlobStats(std::string* value, Slice /*suffix*/) {
-  assert(value);
-  assert(cfd_);
+  // assert(value);
+  // assert(cfd_);
 
-  const auto* current = cfd_->current();
-  assert(current);
+  // const auto* current = cfd_->current();
+  // assert(current);
 
-  const auto* vstorage = current->storage_info();
-  assert(vstorage);
+  // const auto* vstorage = current->storage_info();
+  // assert(vstorage);
 
-  const auto blob_st = vstorage->GetBlobStats();
+  // const auto blob_st = vstorage->GetBlobStats();
 
-  std::ostringstream oss;
+  // std::ostringstream oss;
 
-  oss << "Number of blob files: " << vstorage->GetBlobFiles().size()
-      << "\nTotal size of blob files: " << blob_st.total_file_size
-      << "\nTotal size of garbage in blob files: " << blob_st.total_garbage_size
-      << "\nBlob file space amplification: " << blob_st.space_amp << '\n';
+  // oss << "Number of blob files: " << vstorage->GetBlobFiles().size()
+  //     << "\nTotal size of blob files: " << blob_st.total_file_size
+  //     << "\nTotal size of garbage in blob files: " << blob_st.total_garbage_size
+  //     << "\nBlob file space amplification: " << blob_st.space_amp << '\n';
 
-  value->append(oss.str());
-
+  // value->append(oss.str());
+  char buf[1000];
+  // DB-level stats, only available from default column family
+  // double seconds_up = (clock_->NowMicros() - started_at_) / kMicrosInSec;
+  // double interval_seconds_up = seconds_up - db_stats_snapshot_.seconds_up;
+  snprintf(buf, sizeof(buf),
+           "S3 status: s3 read cnt: %lu, s3 put cnt: %lu, s3 compaction read cnt: %lu\n",
+           s3_access_cnt.load(), s3_put_cnt.load(), s3_compact_read_cnt.load());
+  value->append(buf);
   return true;
 }
 
@@ -1931,6 +1940,7 @@ void InternalStats::DumpCFStatsWriteStall(std::string* value,
   *value = str.str();
 }
 
+// (wjp) rocksdb.cfstats CF stats就作为我rocksdb内部打印到外面的输出了
 void InternalStats::DumpCFStats(std::string* value) {
   DumpCFStatsNoFileHistogram(/*is_periodic=*/false, value);
   DumpCFFileHistogram(value);

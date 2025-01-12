@@ -1,5 +1,11 @@
 make_config.mk
 rocksdb.pc
+.ccls-cache
+clone_example
+cloud_dump
+cloud_durable_example
+*.jpg
+a_my_log/*
 
 *.a
 *.arc

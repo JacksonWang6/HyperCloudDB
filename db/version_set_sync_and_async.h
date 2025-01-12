@@ -93,8 +93,12 @@ DEFINE_SYNC_AND_ASYNC(Status, Version::MultiGetFromSST)
           RecordTick(db_statistics_, GET_HIT_L0);
         } else if (hit_file_level == 1) {
           RecordTick(db_statistics_, GET_HIT_L1);
-        } else if (hit_file_level >= 2) {
-          RecordTick(db_statistics_, GET_HIT_L2_AND_UP);
+        } else if (hit_file_level == 2) {
+          RecordTick(db_statistics_, GET_HIT_L2);
+        } else if (hit_file_level == 3) {
+          RecordTick(db_statistics_, GET_HIT_L3);
+        } else {
+          RecordTick(db_statistics_, GET_HIT_L4_AND_UP);
         }
 
         PERF_COUNTER_BY_LEVEL_ADD(user_key_return_count, 1, hit_file_level);

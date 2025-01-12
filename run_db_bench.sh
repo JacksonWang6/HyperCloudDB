@@ -1,0 +1,1 @@
+./db_bench -use_hyper_cloud_db=true --benchmarks="fillrandom" -histogram=1 --statistics -threads=8 -max_background_compactions=8 -max_background_flushes=2 -key_size=24 -value_size=1000 -db="/tmp/dbbench_test" -num=40000000 -writes=5000000 | tee $(date +%Y%m%d%H%M%S).log

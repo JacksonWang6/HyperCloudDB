@@ -4,6 +4,8 @@
 // A directory maps to an an zero-size object in an S3 bucket
 // A sst file maps to an object in that S3 bucket.
 //
+#include <cstdio>
+#include "rocksdb/statistics.h"
 #ifndef ROCKSDB_LITE
 #ifdef USE_AWS
 #include <aws/core/Aws.h>
@@ -291,9 +293,15 @@ class S3ReadableFile : public CloudStorageReadableFileImpl {
   IOStatus DoCloudRead(uint64_t offset, size_t n, const IOOptions& /*options*/,
                        char* scratch, uint64_t* bytes_read,
                        IODebugContext* /*dbg*/) const override {
+    // printf("DoCloudRead file %s off %lu len %zu\n", fname_.c_str(), offset, n);
+    // TODO 打点读操作的时间以及大小
+    // 获取当前时间点
+    auto start = std::chrono::high_resolution_clock::now();
+
     // create a range read request
     // Ranges are inclusive, so we can't read 0 bytes; read 1 instead and
     // drop it later.
+    s3_access_cnt++; // (wjp): add s3 access计数打点
     size_t rangeLen = (n != 0 ? n : 1);
     char buffer[512];
     int ret = snprintf(buffer, sizeof(buffer), "bytes=%" PRIu64 "-%" PRIu64,
@@ -347,6 +355,14 @@ class S3ReadableFile : public CloudStorageReadableFileImpl {
         "[s3] S3ReadableFile file %s filesize %" PRIu64 " read %" PRIu64
         " bytes",
         fname_.c_str(), file_size_, *bytes_read);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto cost = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(start.time_since_epoch());
+    // 输出微秒级时间戳到终端
+    Log(InfoLogLevel::INFO_LEVEL, info_log_,
+        "[wjp DoCloudRead] time: %lu, DoCloudRead file %s off %lu len %f MB, cost %f ms\n",
+        duration.count(), fname_.c_str(), offset, n/1024.0/1024.0, cost.count() / 1000.0);
+    // printf("", duration.count(), fname_.c_str(), offset, n/1024.0/1024.0, cost.count() / 1000.0);
     return IOStatus::OK();
   }
 
@@ -1045,7 +1061,7 @@ IOStatus S3StorageProvider::DoPutCloudObject(const std::string& local_file,
     }
   }
   Log(InfoLogLevel::INFO_LEVEL, cfs_->GetLogger(),
-      "[s3] PutCloudObject %s/%s, size %" PRIu64 ", OK", bucket_name.c_str(),
+      "[s3] PutCloudObject localfile %s to %s/%s, size %" PRIu64 ", OK", local_file.c_str(), bucket_name.c_str(),
       object_path.c_str(), file_size);
   return IOStatus::OK();
 }

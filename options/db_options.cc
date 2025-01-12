@@ -775,8 +775,11 @@ ImmutableDBOptions::ImmutableDBOptions(const DBOptions& options)
       enforce_single_del_contracts(options.enforce_single_del_contracts),
       disable_delete_obsolete_files_on_open(options.disable_delete_obsolete_files_on_open),
       max_num_replication_epochs(options.max_num_replication_epochs) {
+  hyper_level = options.hyper_level;
+  enable_s3_compaction_read = false;
   fs = env->GetFileSystem();
   clock = env->GetSystemClock().get();
+  started_at_ = clock->NowMicros();
   logger = info_log.get();
   stats = statistics.get();
 }

@@ -4939,7 +4939,7 @@ class TickerTypeJni {
         return 0x2F;
       case ROCKSDB_NAMESPACE::Tickers::GET_HIT_L1:
         return 0x30;
-      case ROCKSDB_NAMESPACE::Tickers::GET_HIT_L2_AND_UP:
+      case ROCKSDB_NAMESPACE::Tickers::GET_HIT_L2:
         return 0x31;
       case ROCKSDB_NAMESPACE::Tickers::COMPACTION_KEY_DROP_NEWER_ENTRY:
         return 0x32;
@@ -5393,7 +5393,7 @@ class TickerTypeJni {
       case 0x30:
         return ROCKSDB_NAMESPACE::Tickers::GET_HIT_L1;
       case 0x31:
-        return ROCKSDB_NAMESPACE::Tickers::GET_HIT_L2_AND_UP;
+        return ROCKSDB_NAMESPACE::Tickers::GET_HIT_L2;
       case 0x32:
         return ROCKSDB_NAMESPACE::Tickers::COMPACTION_KEY_DROP_NEWER_ENTRY;
       case 0x33:

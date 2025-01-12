@@ -1,4 +1,5 @@
 // Copyright (c) 2017 Rockset.
+#include "rocksdb/statistics.h"
 #ifndef ROCKSDB_LITE
 
 #include "rocksdb/cloud/cloud_file_system_impl.h"
@@ -152,6 +153,11 @@ IOStatus CloudFileSystemImpl::NewCloudReadableFile(
   return st;
 }
 
+static bool isEBS(const std::string& fname) {
+  // Search for the substring "ebs"
+  return fname.find("ebs") != std::string::npos;
+}
+
 // open a file for sequential reading
 IOStatus CloudFileSystemImpl::NewSequentialFile(
     const std::string& logical_fname, const FileOptions& file_opts,
@@ -168,6 +174,14 @@ IOStatus CloudFileSystemImpl::NewSequentialFile(
   auto st = status_to_io_status(CheckOption(file_opts));
   if (!st.ok()) {
     return st;
+  }
+
+  if (sstfile && isEBS(fname)) {
+    st = base_fs_->NewSequentialFile(fname, file_opts, result, dbg);
+    if (st.ok()) {
+      return st;
+    }
+    printf("ERROR: sst %s not found on ebs\n", fname.c_str());
   }
 
   if (sstfile || manifest || identity) {
@@ -238,9 +252,17 @@ IOStatus CloudFileSystemImpl::NewRandomAccessFile(
     return st;
   }
 
+  if (sstfile && isEBS(fname)) {
+    st = base_fs_->NewRandomAccessFile(fname, file_opts, result, dbg);
+    if (st.ok()) {
+      return st;
+    }
+    printf("ERROR: sst %s not found on ebs\n", fname.c_str());
+  }
+
   const IOOptions io_opts;
   if (sstfile || manifest || identity) {
-    if (cloud_fs_options.keep_local_sst_files || !sstfile) {
+    if (cloud_fs_options.keep_local_sst_files || !sstfile || file_opts.is_s3_compaction_read) {
       // Read from local storage and then from cloud storage.
       st = base_fs_->NewRandomAccessFile(fname, file_opts, result, dbg);
 
@@ -253,6 +275,9 @@ IOStatus CloudFileSystemImpl::NewRandomAccessFile(
         // copy the file to the local storage
         st = GetCloudObject(fname);
         if (st.ok()) {
+          if (file_opts.is_s3_compaction_read) {
+            s3_compact_read_cnt++; // (wjp): 统计触发S3Compaction的时候，以大粒度从S3读取的次数
+          }
           // we successfully copied the file, try opening it locally now
           st = base_fs_->NewRandomAccessFile(fname, file_opts, result, dbg);
         }
@@ -318,6 +343,15 @@ IOStatus CloudFileSystemImpl::NewWritableFile(
        manifest = (file_type == RocksDBFileType::kManifestFile),
        identity = (file_type == RocksDBFileType::kIdentityFile),
        logfile = (file_type == RocksDBFileType::kLogFile);
+
+  if (sstfile && isEBS(fname)) {
+    IOStatus s = base_fs_->NewWritableFile(fname, file_opts, result, dbg);
+    if (s.ok()) {
+      return s;
+    }
+
+    printf("ERROR: sst %s not found on ebs\n", fname.c_str());
+  }
 
   IOStatus s;
   if (HasDestBucket() && (sstfile || identity || manifest)) {
@@ -764,6 +798,7 @@ IOStatus CloudFileSystemImpl::DeleteFile(const std::string& logical_fname,
 
 IOStatus CloudFileSystemImpl::CopyLocalFileToDest(
     const std::string& local_name, const std::string& dest_name) {
+  s3_put_cnt++;
   if (cloud_file_deletion_scheduler_) {
     // Remove file from deletion queue
     cloud_file_deletion_scheduler_->UnscheduleFileDeletion(

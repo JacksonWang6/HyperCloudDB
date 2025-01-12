@@ -4,6 +4,7 @@
 #include "rocksdb/cloud/cloud_storage_provider.h"
 
 #include <cinttypes>
+#include <cstdio>
 
 #include "cloud/filename.h"
 #include "file/filename.h"
@@ -155,6 +156,10 @@ CloudStorageWritableFileImpl::~CloudStorageWritableFileImpl() {
   }
 }
 
+static bool isEBS(std::string fname) {
+  return fname.find("ebs") != std::string::npos;
+}
+
 IOStatus CloudStorageWritableFileImpl::Close(const IOOptions& opts,
                                              IODebugContext* dbg) {
   if (local_file_ == nullptr) {  // already closed
@@ -175,16 +180,19 @@ IOStatus CloudStorageWritableFileImpl::Close(const IOOptions& opts,
   local_file_.reset();
 
   if (!is_manifest_) {
+    // (wjp) maybe need retry
     status_ = cfs_->CopyLocalFileToDest(fname_, cloud_fname_);
     if (!status_.ok()) {
       Log(InfoLogLevel::ERROR_LEVEL, cfs_->GetLogger(),
           "[%s] CloudWritableFile closing PutObject failed on local file %s",
           Name(), fname_.c_str());
+      printf("ERROR: CopyLocalFile %s ToDest %s failed\n", fname_.c_str(), cloud_fname_.c_str());
       return status_;
     }
 
     // delete local file
-    if (!cfs_->GetCloudFileSystemOptions().keep_local_sst_files) {
+    bool is_ebs = isEBS(fname_);
+    if (!cfs_->GetCloudFileSystemOptions().keep_local_sst_files && !is_ebs) {
       status_ = cfs_->GetBaseFileSystem()->DeleteFile(fname_, opts, dbg);
       if (!status_.ok()) {
         Log(InfoLogLevel::ERROR_LEVEL, cfs_->GetLogger(),
