@@ -99,6 +99,14 @@ if (WITH_WINDOWS_UTF8_FILENAMES)
   add_definitions(-DROCKSDB_WINDOWS_UTF8_FILENAMES)
 endif()
 option(ROCKSDB_BUILD_SHARED "Build shared versions of the RocksDB libraries" ON)
+option(WITH_CACHELIB "build with cachelib" ON)
+
+include_directories("/home/wjp/CacheLib/opt/cachelib/include/")
+if(WITH_CACHELIB)
+  find_package(CacheLib CONFIG REQUIRED)
+  add_definitions(-DCACHELIB)
+  list(APPEND THIRDPARTY_LIBS cachelib)
+endif()
 
 if( NOT DEFINED CMAKE_CXX_STANDARD )
   set(CMAKE_CXX_STANDARD 17)
@@ -654,6 +662,7 @@ set(SOURCES
         cache/charged_cache.cc
         cache/clock_cache.cc
         cache/compressed_secondary_cache.cc
+        cache/secondary_cache_cachelib.cc
         cache/lru_cache.cc
         cache/secondary_cache.cc
         cache/secondary_cache_adapter.cc
