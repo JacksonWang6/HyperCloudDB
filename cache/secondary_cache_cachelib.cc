@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "secondary_cache_cachelib.h"
+#include "rocksdb/secondary_cache_cachelib.h"
 
 #include "folly/synchronization/Rcu.h"
 #include "rocksdb/statistics.h"

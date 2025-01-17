@@ -158,7 +158,7 @@ struct ShardedCacheOptions {
 
   // A SecondaryCache instance to use the non-volatile tier. For a RowCache
   // this option must be kept as default empty.
-  std::shared_ptr<SecondaryCache> secondary_cache;
+  mutable std::shared_ptr<SecondaryCache> secondary_cache;
 
   // See hash_seed comments below
   static constexpr int32_t kQuasiRandomHashSeed = -1;

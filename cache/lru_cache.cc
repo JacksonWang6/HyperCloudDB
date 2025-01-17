@@ -18,6 +18,7 @@
 #include "monitoring/perf_context_imp.h"
 #include "monitoring/statistics_impl.h"
 #include "port/lang.h"
+#include "rocksdb/secondary_cache_cachelib.h"
 #include "util/distributed_mutex.h"
 
 namespace ROCKSDB_NAMESPACE {
@@ -709,6 +710,10 @@ std::shared_ptr<Cache> LRUCacheOptions::MakeSharedCache() const {
     opts.num_shard_bits = GetDefaultCacheShardBits(capacity);
   }
   std::shared_ptr<Cache> cache = std::make_shared<LRUCache>(opts);
+  if (true) {
+    unsigned long long flash_cache_size = 6ULL * 1024 * 1024 * 1024;
+    secondary_cache = facebook::rocks_secondary_cache::NewRocksCachelibWrapper(flash_cache_size);
+  }
   if (secondary_cache) {
     cache = std::make_shared<CacheWithSecondaryAdapter>(cache, secondary_cache);
   }
