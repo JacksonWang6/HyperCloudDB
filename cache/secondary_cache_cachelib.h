@@ -148,6 +148,6 @@ class RocksCachelibWrapper : public rocksdb::SecondaryCache {
 
 // Allocate a new Cache instance with a rocksdb::TieredCache wrapper around it
 extern std::unique_ptr<rocksdb::SecondaryCache> NewRocksCachelibWrapper(
-    RocksCachelibOptions& opts, unsigned long flash_cache_size);
+    unsigned long flash_cache_size);
 } // namespace rocks_secondary_cache
 } // namespace facebook

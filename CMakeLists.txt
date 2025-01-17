@@ -101,7 +101,7 @@ endif()
 option(ROCKSDB_BUILD_SHARED "Build shared versions of the RocksDB libraries" ON)
 option(WITH_CACHELIB "build with cachelib" ON)
 
-include_directories("/home/wjp/CacheLib/opt/cachelib/include/")
+include_directories("/home/ubuntu/CacheLib/opt/cachelib/include/")
 if(WITH_CACHELIB)
   find_package(CacheLib CONFIG REQUIRED)
   add_definitions(-DCACHELIB)

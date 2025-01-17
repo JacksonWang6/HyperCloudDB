@@ -238,17 +238,17 @@ void RocksCachelibWrapper::Close() {
 
 // Global cache object and a default cache pool
 std::unique_ptr<rocksdb::SecondaryCache> NewRocksCachelibWrapper(
-    RocksCachelibOptions& opts, unsigned long flash_cache_size) {
+    unsigned long flash_cache_size) {
   // FIXME(wjp): 二级缓存所存储的文件路径
-  std::string NavyFileNameBase = "/nvme/cachelib/NavyStorage";
+  std::string NavyFileNameBase = "/home/ubuntu/gp3";
   srand(time(nullptr));
   int random_number = rand() % (1000 - 1 + 1) + 1;
   std::string NavyFileName = NavyFileNameBase + std::to_string(random_number);
 
-  // RocksCachelibOptions opts;
+  RocksCachelibOptions opts;
   opts.cacheName = "SecondaryCacheCachelib";
   opts.fileName = NavyFileName;
-  opts.size = flash_cache_size * 1024UL * 1024UL;
+  opts.size = 6UL * 1024UL * 1024UL * 1024UL;
 
   std::unique_ptr<FbCache> cache;
   cachelib::PoolId defaultPool;

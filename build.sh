@@ -11,7 +11,7 @@ git submodule update
 set -e
 
 # Root directory for the CacheLib project
-CLBASE="/home/wjp/CacheLib"
+CLBASE="/home/ubuntu/CacheLib"
 
 # Additional "FindXXX.cmake" files are here (e.g. FindSodium.cmake)
 CLCMAKE="$CLBASE/cachelib/cmake"
@@ -23,18 +23,19 @@ CMAKE_PARAMS="-DCMAKE_INSTALL_PREFIX='$PREFIX' -DCMAKE_MODULE_PATH='$CLCMAKE'"
 
 CMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH:-}:$PREFIX/lib/cmake:$PREFIX/lib64/cmake"
 # CMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH:-}:$PREFIX/lib/cmake:$PREFIX/lib64/cmake:$PREFIX/lib:$PREFIX/lib64:$PREFIX"
+export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 export CMAKE_PREFIX_PATH
 # PKG_CONFIG_PATH="${PKG_CONFIG_PATH:-}:$PREFIX/lib/pkgconfig:$PREFIX/lib64/pkgconfig"
 # export PKG_CONFIG_PATH
 # LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}:$PREFIX/lib:$PREFIX/lib64"
 # export LD_LIBRARY_PATH
 
-rm -rf build
-mkdir -p build
+# rm -rf build
+# mkdir -p build
 cd build
 # cmake $CMAKE_PARAMS ..
-cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=On -DWITH_AWS=On -DUSE_RTTI=On -DCMAKE_BUILD_TYPE=Release 
-make -j20
+# cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=On -DWITH_AWS=On -DUSE_RTTI=On -DCMAKE_BUILD_TYPE=Release 
+make -j8
 
 
 # my
